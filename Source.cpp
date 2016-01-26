@@ -291,10 +291,10 @@ int main()
 
 	InitializeUIArray(DMap,row,column);
 
-	std::thread a(SHDRighttoLeft13, DMap,							LCTImage, 							RCTImage, 							row / 4, column);
-	std::thread b(SHDRighttoLeft13, DMap + row / 4 * column, 		LCTImage + row / 2 * column, 		RCTImage + row / 2 * column, 		row / 4, column);
-	std::thread c(SHDRighttoLeft13, DMap + row / 2 * column, 		LCTImage + row * column, 			RCTImage + row * column, 			row / 4, column);
-	std::thread d(SHDRighttoLeft13, DMap + row * 3 / 4 * column, 	LCTImage + row *3 / 2 * column, 	RCTImage + row * 3 / 2 * column, 	row / 4, column);
+	std::thread a(SHDRighttoLeft13, DMap,								LCTImage, 								RCTImage, 								row / 4 + 6,	column);
+	std::thread b(SHDRighttoLeft13, DMap + (row / 4 - 6) * column, 		LCTImage + (row / 2 - 12) * column, 	RCTImage + (row / 2 - 12) * column, 	row / 4 + 12, 	column);
+	std::thread c(SHDRighttoLeft13, DMap + (row / 2 - 6) * column, 		LCTImage + (row - 12) * column, 		RCTImage + (row - 12)* column, 			row / 4 + 12, 	column);
+	std::thread d(SHDRighttoLeft13, DMap + (row * 3 / 4 - 6) * column, 	LCTImage + (row * 3 / 2 - 12) * column, RCTImage + (row *3 / 2 - 12) * column, 	row / 4, 		column);
 
 	a.join();
 	b.join();
