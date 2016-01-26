@@ -1,6 +1,6 @@
 CC=g++
 CFLAGS=-std=c++0x -O3 -march=native -mtune=native -Wall -c -fmessage-length=0 -mpopcnt
-LDFLAGS= -lpng12 -lm -lz
+LDFLAGS= -lpng12 -lm -lz -lpthread
 SOURCES=Source.cpp
 OBJECTS=$(SOURCES:.cpp=.o)
 EXECUTABLE=DM

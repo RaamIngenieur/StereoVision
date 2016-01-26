@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <fstream>
 #include <sys/time.h>
+#include <thread>
 
 using namespace std;
 
@@ -290,7 +291,15 @@ int main()
 
 	InitializeUIArray(DMap,row,column);
 
-	SHDRighttoLeft13(DMap,LCTImage,RCTImage,row,column);
+	std::thread a(SHDRighttoLeft13, DMap,							LCTImage, 							RCTImage, 							row / 4, column);
+	std::thread b(SHDRighttoLeft13, DMap + row / 4 * column, 		LCTImage + row / 2 * column, 		RCTImage + row / 2 * column, 		row / 4, column);
+	std::thread c(SHDRighttoLeft13, DMap + row / 2 * column, 		LCTImage + row * column, 			RCTImage + row * column, 			row / 4, column);
+	std::thread d(SHDRighttoLeft13, DMap + row * 3 / 4 * column, 	LCTImage + row *3 / 2 * column, 	RCTImage + row * 3 / 2 * column, 	row / 4, column);
+
+	a.join();
+	b.join();
+	c.join();
+	d.join();
 
 	ArrayUItoImage(&imageL,DMap,row,column);
 
