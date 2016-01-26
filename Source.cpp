@@ -10,7 +10,7 @@ using namespace std;
 class UCarray
 {
 public:
-	unsigned char **Pix;
+	unsigned char *Pix;
 	UCarray(int r, int c);
 	~UCarray();
 	void ImagetoArray(png::image<png::gray_pixel>* input);
@@ -28,24 +28,17 @@ UCarray::UCarray(int r, int c)
 {
 	row = r;
 	column = c;
-	Pix = (unsigned char**)malloc(row * sizeof(unsigned char*));
-	for (int i = 0; i < row; i++)
+	Pix = (unsigned char*)malloc(row * column * sizeof(unsigned char));
+	if (Pix == NULL)
 	{
-		Pix[i] = (unsigned char*) malloc(column * sizeof(unsigned char));
-		if (Pix[i] == NULL)
-		{
-			fprintf(stderr, "out of memory\n");
-		}
+		fprintf(stderr, "out of memory\n");
 	}
+
 }
 
 UCarray::~UCarray()
 {
-	for(int i=0;i<row;i++)
-	{
-		free (Pix[i]);
-	}
-	free (Pix);
+	free(Pix);
 }
 
 void UCarray::ImagetoArray(png::image<png::gray_pixel>* input)
@@ -54,7 +47,7 @@ void UCarray::ImagetoArray(png::image<png::gray_pixel>* input)
 	{
 		for (int j = 0; j < column; j++)
 		{
-			Pix[i][j] = (*input)[i][j];
+			*(Pix + i*column +j) = (*input)[i][j];
 		}
 	}
 }
@@ -65,7 +58,7 @@ void UCarray::ArraytoImage(png::image<png::gray_pixel>* output)
 	{
 		for (int j = 0; j < column; j++)
 		{
-			(*output)[i][j] = Pix[i][j];
+			(*output)[i][j] = *(Pix + i*column +j);
 		}
 	}
 }
@@ -76,7 +69,7 @@ void UCarray:: operator =(const UCarray&  other)
 	{
 		for (int j = 0; j < column; j++)
 		{
-			Pix[i][j] = other.Pix[i][j];
+			*(Pix+i*column+j) = *(other.Pix+i*column+j);
 		}
 	}
 }
@@ -88,18 +81,18 @@ void UCarray::ArrayErode(UCarray &b)
 	{
 		for (int j = 1; j <= column - 2; j++)
 		{
-			min = Pix[i][j];
+			min = *(Pix+i*column+j);
 			for (int k = -1; k <= 1; k++)
 			{
 				for (int l = -1; l <= 1; l++)
 				{
-					if (Pix[i+k][j+l] < min)
+					if (*(Pix+(i + k)*column+j + l) < min)
 					{
-						min = Pix[i+k][j+l];
+						min = *(Pix + (i + k)*column + j + l);
 					}
 				}
 			}
-			b.Pix[i][j] = min;
+			*(b.Pix+i*column+j) = min;
 		}
 	}
 }
@@ -111,23 +104,23 @@ void UCarray::ArrayDilate(UCarray &b)
 	{
 		for (int j = 1; j <= column - 2; j++)
 		{
-			max = Pix[i][j];
+			max = *(Pix + i*column + j);
 			for (int k = -1; k <= 1; k++)
 			{
 				for (int l = -1; l <= 1; l++)
 				{
-					if (Pix[i+k][j+l] > max)
+					if (*(Pix + (i + k)*column + j + l) > max)
 					{
-						max = Pix[i+k][j+l];
+						max = *(Pix + (i + k)*column + j + l);
 					}
 				}
 			}
-			b.Pix[i][j] = max;
+			*(b.Pix + i*column + j) = max;
 		}
 	}
 }
 
-void InitializeULArray(unsigned long *** Pix, int row, int column)
+void InitializeULArray(unsigned long * Pix, int row, int column)
 {
 	for (int i = 0; i < row; i++)
 	{
@@ -135,22 +128,24 @@ void InitializeULArray(unsigned long *** Pix, int row, int column)
 		{
 			for (int k = 0; k < 2; k++)
 			{
-				Pix[i][j][k] = 0;
+				*(Pix+(i*column+j)*2+k) = 0;
 			}
 
 		}
 	}
 }
 
-void Census11(unsigned long *** OPic, UCarray &IPic, int row, int column)
+void Census11(unsigned long * OPic, UCarray &IPic, int row, int column)
 {
 	int BitCnt;
+	unsigned long * OPicc;
 
 	for (int i = 5; i <= row - 6; i++)
 	{
 		for (int j = 5; j <= column - 6; j++)
 		{
 			BitCnt = 0;
+			OPicc = OPic+i*column*2+j*2;
 
 			for (int k = -5; k <= 5; k++)
 			{
@@ -158,14 +153,17 @@ void Census11(unsigned long *** OPic, UCarray &IPic, int row, int column)
 				{
 					if (~(k == 0 && l == 0))
 					{
-						OPic[i][j][BitCnt/64] = OPic[i][j][BitCnt/64] << 1;
+						*OPicc = *OPicc << 1;
 
-						if (IPic.Pix[i+k][j+l] < IPic.Pix[i][j])
+						if (*(IPic.Pix +(i + k)*column+j + l) < *(IPic.Pix+i*column+j))
 						{
-							OPic[i][j][BitCnt/64] = OPic[i][j][BitCnt/64] + 1;
+							*OPicc = *OPicc + 1;
 						}
 
 						BitCnt++;
+
+						if (BitCnt%64==0)
+						OPicc = OPicc + 1;
 
 					}
 				}
@@ -174,29 +172,29 @@ void Census11(unsigned long *** OPic, UCarray &IPic, int row, int column)
 	}
 }
 
-void InitializeUIArray(unsigned int** Pix, int row, int column)
+void InitializeUIArray(unsigned int* Pix, int row, int column)
 {
 	for (int i = 0; i < row; i++)
 	{
 		for (int j = 0; j < column; j++)
 		{
-			Pix[i][j] = 0;
+			*(Pix+i*column+j) = 0;
 		}
 	}
 }
 
-void ArrayUItoImage(png::image<png::gray_pixel>* input, unsigned int** Pix, int row, int column)
+void ArrayUItoImage(png::image<png::gray_pixel>* input, unsigned int* Pix, int row, int column)
 {
 	for (int i = 0; i < row; i++)
 	{
 		for (int j = 0; j < column; j++)
 		{
-			(*input)[i][j] = (unsigned char)(Pix[i][j]);
+			(*input)[i][j] = (unsigned char)(*(Pix+i*column+j));
 		}
 	}
 }
 
-void SHDRighttoLeft13(unsigned int** DMap, unsigned long  ***LPic, unsigned long  ***RPic, int row, int column)
+void SHDRighttoLeft13(unsigned int* DMap, unsigned long  *LPic, unsigned long  *RPic, int row, int column)
 {
 	unsigned int HammDistCalc, HammDistMin = 28561;
 	unsigned long Xor;
@@ -216,9 +214,9 @@ void SHDRighttoLeft13(unsigned int** DMap, unsigned long  ***LPic, unsigned long
 					{
 						for (int l = -6; l <= 6; l++)
 						{
-							Xor = LPic[i+k][j+l+DRange][0] ^ RPic[i+k][j+l][0];
+							Xor = *(LPic +((i + k)*column + j + l + DRange)*2) ^ *(RPic +((i + k)*column + j + l)*2);
 							HammDistCalc += __builtin_popcountl(Xor);
-							Xor = LPic[i+k][j+l+DRange][1] ^ RPic[i+k][j+l][1];
+							Xor = *(LPic +((i + k)*column + j + l + DRange)*2 +1) ^ *(RPic +((i + k)*column + j + l)*2 +1);
 							HammDistCalc += __builtin_popcountl(Xor);
 						}
 					}
@@ -227,7 +225,7 @@ void SHDRighttoLeft13(unsigned int** DMap, unsigned long  ***LPic, unsigned long
 				if (HammDistCalc<HammDistMin)
 				{
 					HammDistMin=HammDistCalc;
-					DMap[i][j] = DRange;
+					*(DMap + i*column + j) = DRange;
 				}
 			}
 
@@ -238,7 +236,7 @@ void SHDRighttoLeft13(unsigned int** DMap, unsigned long  ***LPic, unsigned long
 
 
 
-void PreProcessImage(png::image<png::gray_pixel>* image, UCarray &UCInput, UCarray &UCOutput, unsigned long *** CTImage, int row, int column)
+void PreProcessImage(png::image<png::gray_pixel>* image, UCarray &UCInput, UCarray &UCOutput, unsigned long * CTImage, int row, int column)
 {
 	UCInput.ImagetoArray(image);
 	UCInput.ArrayErode(UCOutput);
@@ -263,45 +261,23 @@ int main()
 
 	int row = imageL.get_height(), column = imageL.get_width();
 
-	UCarray  UCLInput(row, column), UCLOutput(row, column), UCRInput(row, column), UCROutput(row, column);
-	unsigned long ***LCTImage, ***RCTImage;
+	UCarray UCLInput(row, column), UCLOutput(row, column), UCRInput(row, column), UCROutput(row, column);
+	unsigned long *LCTImage, *RCTImage;
 
-	LCTImage = (unsigned long***)malloc(row * sizeof(unsigned long**));
-	RCTImage = (unsigned long***)malloc(row * sizeof(unsigned long**));
-	for (int i = 0; i < row; i++)
+	LCTImage = (unsigned long*)malloc(row * column* 2 * sizeof(unsigned long ));
+	RCTImage = (unsigned long*)malloc(row * column* 2 * sizeof(unsigned long));
+	if (LCTImage == NULL||RCTImage == NULL)
 	{
-		LCTImage[i] = (unsigned long**) malloc(column * sizeof(unsigned long*));
-		RCTImage[i] = (unsigned long**) malloc(column * sizeof(unsigned long*));
-		if (LCTImage[i] == NULL||RCTImage[i] == NULL)
-		{
-			fprintf(stderr, "out of memory\n");
-			return 0;
-		}
-		for (int j = 0; j < column; j++)
-		{
-			LCTImage[i][j] = (unsigned long*) malloc(2 * sizeof(unsigned long));
-			RCTImage[i][j] = (unsigned long*) malloc(2 * sizeof(unsigned long));
-			if (LCTImage[i][j] == NULL||RCTImage[i][j] == NULL)
-			{
-				fprintf(stderr, "out of memory\n");
-				return 0;
-			}
-		}
+		fprintf(stderr, "out of memory\n");
 	}
 
-	unsigned int** DMap;
+	unsigned int* DMap;
 
-	DMap = (unsigned int**)malloc(row * sizeof(unsigned int*));
-	for (int i = 0; i < row; i++)
+	DMap = (unsigned int*)malloc(row * column * sizeof(unsigned int));
+	if (DMap == NULL)
 	{
-		DMap[i] = (unsigned int*) malloc(column * sizeof(unsigned int));
-		if (DMap[i] == NULL)
-		{
-			fprintf(stderr, "out of memory\n");
-			return 0;
-		}
+		fprintf(stderr, "out of memory\n");
 	}
-
 
 	gettimeofday(&tim, NULL);
 	t5 = tim.tv_sec + (tim.tv_usec / 1000000.0);
@@ -312,7 +288,6 @@ int main()
 	gettimeofday(&tim, NULL);
 	t6 = tim.tv_sec + (tim.tv_usec / 1000000.0) - t5;
 
-	
 	InitializeUIArray(DMap,row,column);
 
 	SHDRighttoLeft13(DMap,LCTImage,RCTImage,row,column);
@@ -332,7 +307,6 @@ int main()
 	cout<<endl<<"Total program run time : "<<t2<<endl;
 	cout<<endl<<"Total processing time : "<<t4<<endl;
 	cout<<endl<<"Total preprocessing time : "<<t6<<endl;
-	
 
 }
 /* speed.cpp
