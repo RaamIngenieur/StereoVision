@@ -4,6 +4,7 @@
 #include <fstream>
 #include <sys/time.h>
 #include <thread>
+#include "emmintrin.h"
 
 using namespace std;
 
@@ -195,10 +196,12 @@ void ArrayUItoImage(png::image<png::gray_pixel>* input, unsigned int* Pix, int r
 	}
 }
 
-void SHDRighttoLeft13(unsigned int* DMap, unsigned long  *LPic, unsigned long  *RPic, int row, int column)
+void SHDRighttoLeft13(unsigned int* DMap, __m128i  *LPic, __m128i  *RPic, int row, int column)
 {
 	unsigned int HammDistCalc, HammDistMin = 28561;
-	unsigned long Xor;
+	__m128i Xor;
+	unsigned long *SigLong;
+	SigLong = (unsigned long*)&Xor;
 	int DMin=0, DMax=100;
 
 	for (int i = 6; i < row - 6; i++)
@@ -215,10 +218,9 @@ void SHDRighttoLeft13(unsigned int* DMap, unsigned long  *LPic, unsigned long  *
 					{
 						for (int l = -6; l <= 6; l++)
 						{
-							Xor = *(LPic +((i + k)*column + j + l + DRange)*2) ^ *(RPic +((i + k)*column + j + l)*2);
-							HammDistCalc += __builtin_popcountl(Xor);
-							Xor = *(LPic +((i + k)*column + j + l + DRange)*2 +1) ^ *(RPic +((i + k)*column + j + l)*2 +1);
-							HammDistCalc += __builtin_popcountl(Xor);
+							Xor = _mm_xor_si128(*(LPic +((i + k)*column + j + l + DRange)),*(RPic +((i + k)*column + j + l)));
+							HammDistCalc += __builtin_popcountl(*SigLong);
+							HammDistCalc += __builtin_popcountl(*(SigLong+1));
 						}
 					}
 				}
@@ -291,10 +293,10 @@ int main()
 
 	InitializeUIArray(DMap,row,column);
 
-	std::thread a(SHDRighttoLeft13, DMap,								LCTImage, 								RCTImage, 								row / 4 + 6,	column);
-	std::thread b(SHDRighttoLeft13, DMap + (row / 4 - 6) * column, 		LCTImage + (row / 2 - 12) * column, 	RCTImage + (row / 2 - 12) * column, 	row / 4 + 12, 	column);
-	std::thread c(SHDRighttoLeft13, DMap + (row / 2 - 6) * column, 		LCTImage + (row - 12) * column, 		RCTImage + (row - 12)* column, 			row / 4 + 12, 	column);
-	std::thread d(SHDRighttoLeft13, DMap + (row * 3 / 4 - 6) * column, 	LCTImage + (row * 3 / 2 - 12) * column, RCTImage + (row *3 / 2 - 12) * column, 	row / 4, 		column);
+	std::thread a(SHDRighttoLeft13, DMap,								(__m128i*)LCTImage, 							(__m128i*)RCTImage, 							row / 4 + 6,	column);
+	std::thread b(SHDRighttoLeft13, DMap + (row / 4 - 6) * column, 		(__m128i*)LCTImage + (row / 4 - 6) * column, 	(__m128i*)RCTImage + (row / 4 - 6) * column, 	row / 4 + 12, 	column);
+	std::thread c(SHDRighttoLeft13, DMap + (row / 2 - 6) * column, 		(__m128i*)LCTImage + (row / 2 - 6) * column, 	(__m128i*)RCTImage + (row / 2 - 6)* column, 	row / 4 + 12, 	column);
+	std::thread d(SHDRighttoLeft13, DMap + (row * 3 / 4 - 6) * column, 	(__m128i*)LCTImage + (row * 3 / 4 - 6) * column,(__m128i*)RCTImage + (row * 3 / 4 - 6) * column,row / 4, 		column);
 
 	a.join();
 	b.join();
