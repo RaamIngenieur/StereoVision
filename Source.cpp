@@ -196,43 +196,57 @@ void ArrayUItoImage(png::image<png::gray_pixel>* input, unsigned int* Pix, int r
 	}
 }
 
-void SHDRighttoLeft13(unsigned int* DMap, __m128i  *LPic, __m128i  *RPic, int row, int column)
+void SHDRighttoLeft13(unsigned int* DMap, __m128i  *LPic, __m128i  *RPic, int row, int column, unsigned int* HammDist, unsigned int* XorSum)
 {
-	unsigned int HammDistCalc, HammDistMin = 28561;
+	unsigned int HammDistCalc;
 	__m128i Xor;
 	unsigned long *SigLong;
 	SigLong = (unsigned long*)&Xor;
 	int DMin=0, DMax=100;
 
+	// Initialize Hamming distance
 	for (int i = 6; i < row - 6; i++)
 	{
 		for (int j = 6; j < column - 6; j++)
 		{
-			for (int DRange = DMax; DRange >= DMin; DRange--)
-			{
-				if(j + 6 + DRange < column)
-				{
-					HammDistCalc = 0;
+			*(HammDist + i*column+j) = 28561;
+		}
+	}
 
-					for (int k = -6; k <= 6; k++)
+
+	for (int DRange = DMax; DRange >= DMin; DRange--)
+	{
+		//Xor and add for each pixel
+		for (int i = 0; i < row; i++)
+		{
+			for (int j = 0; j < column - DRange; j++)
+			{
+				Xor = _mm_xor_si128 (*(LPic+i*column+j+DRange), *(RPic+i*column+j));
+				*(XorSum+(i*column+j))= __builtin_popcountl(*SigLong);
+				*(XorSum+(i*column+j))+= __builtin_popcountl(*(SigLong+1));
+			}
+		}
+
+		for (int i = 6; i < row - 6; i++)
+		{
+			for (int j = 6; j < column - DRange - 6; j++)
+			{
+				HammDistCalc = 0;
+
+				for (int k = -6; k <= 6; k++)
+				{
+					for (int l = -6; l <= 6; l++)
 					{
-						for (int l = -6; l <= 6; l++)
-						{
-							Xor = _mm_xor_si128(*(LPic +((i + k)*column + j + l + DRange)),*(RPic +((i + k)*column + j + l)));
-							HammDistCalc += __builtin_popcountl(*SigLong);
-							HammDistCalc += __builtin_popcountl(*(SigLong+1));
-						}
+						HammDistCalc+=*(XorSum + (i+k)*column+j+l);
 					}
 				}
 
-				if (HammDistCalc<HammDistMin)
+				if (HammDistCalc<*(HammDist+i*column+j))
 				{
-					HammDistMin=HammDistCalc;
+					*(HammDist+i*column+j)=HammDistCalc;
 					*(DMap + i*column + j) = DRange;
 				}
 			}
-
-			HammDistMin = 28561;
 		}
 	}
 }
@@ -274,10 +288,13 @@ int main()
 		fprintf(stderr, "out of memory\n");
 	}
 
-	unsigned int* DMap;
+	unsigned int* DMap, *XorSum, *HammDist;
 
 	DMap = (unsigned int*)malloc(row * column * sizeof(unsigned int));
-	if (DMap == NULL)
+	HammDist = (unsigned int*)malloc(row*column*sizeof(unsigned int));
+	XorSum = (unsigned int*)malloc((row+36)*column*sizeof(unsigned int));
+
+	if (DMap == NULL || HammDist ==NULL || XorSum == NULL)
 	{
 		fprintf(stderr, "out of memory\n");
 	}
@@ -293,10 +310,10 @@ int main()
 
 	InitializeUIArray(DMap,row,column);
 
-	std::thread a(SHDRighttoLeft13, DMap,								(__m128i*)LCTImage, 							(__m128i*)RCTImage, 							row / 4 + 6,	column);
-	std::thread b(SHDRighttoLeft13, DMap + (row / 4 - 6) * column, 		(__m128i*)LCTImage + (row / 4 - 6) * column, 	(__m128i*)RCTImage + (row / 4 - 6) * column, 	row / 4 + 12, 	column);
-	std::thread c(SHDRighttoLeft13, DMap + (row / 2 - 6) * column, 		(__m128i*)LCTImage + (row / 2 - 6) * column, 	(__m128i*)RCTImage + (row / 2 - 6)* column, 	row / 4 + 12, 	column);
-	std::thread d(SHDRighttoLeft13, DMap + (row * 3 / 4 - 6) * column, 	(__m128i*)LCTImage + (row * 3 / 4 - 6) * column,(__m128i*)RCTImage + (row * 3 / 4 - 6) * column,row / 4, 		column);
+	std::thread a(SHDRighttoLeft13, DMap,								(__m128i*)LCTImage, 							(__m128i*)RCTImage, 							row / 4 + 6, column,HammDist, 							  XorSum);
+	std::thread b(SHDRighttoLeft13, DMap + (row / 4 - 6) * column, 		(__m128i*)LCTImage + (row / 4 - 6) * column, 	(__m128i*)RCTImage + (row / 4 - 6) * column, 	row / 4 + 12,column,HammDist + (row / 4 - 6) * column, 	  XorSum + (row / 4 + 6) * column);
+	std::thread c(SHDRighttoLeft13, DMap + (row / 2 - 6) * column, 		(__m128i*)LCTImage + (row / 2 - 6) * column, 	(__m128i*)RCTImage + (row / 2 - 6)* column, 	row / 4 + 12,column,HammDist + (row / 2 - 6)* column, 	  XorSum + (row / 2 + 18)* column);
+	std::thread d(SHDRighttoLeft13, DMap + (row * 3 / 4 - 6) * column, 	(__m128i*)LCTImage + (row * 3 / 4 - 6) * column,(__m128i*)RCTImage + (row * 3 / 4 - 6) * column,row / 4 + 6, column,HammDist + (row * 3 / 4 - 6) * column,XorSum + (row * 3 / 4 + 30) * column);
 
 	a.join();
 	b.join();
