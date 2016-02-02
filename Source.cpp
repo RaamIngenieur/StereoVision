@@ -195,7 +195,7 @@ void ArrayUItoImage(png::image<png::gray_pixel>* input, unsigned int* Pix, int r
 	}
 }
 
-void SHDRighttoLeft13(unsigned int* DMap, unsigned long  *LPic, unsigned long  *RPic, int row, int column, unsigned int* HammDist, unsigned int* XorSum)
+void SHDRighttoLeft13(unsigned int* DMap, unsigned long  *LPic, unsigned long  *RPic, int row, int column, unsigned int* HammDist, unsigned int* XorSum, unsigned int* HammDistY)
 {
 	unsigned int HammDistCalc;
 	unsigned long Xor;
@@ -225,6 +225,22 @@ void SHDRighttoLeft13(unsigned int* DMap, unsigned long  *LPic, unsigned long  *
 			}
 		}
 
+
+		//Add vertically, calculating partial hamming distance for each pixel
+		for (int i = 6; i < row - 6; i++)
+		{
+			for (int j = 0; j < column - DRange; j++)
+			{
+				HammDistCalc = 0;
+				for (int k = -6; k <= 6; k++)
+				{
+					HammDistCalc+= *(XorSum + (i+k)*column +j);
+				}
+
+                *(HammDistY + i*column +j) = HammDistCalc;
+			}
+		}
+
 		for (int i = 6; i < row - 6; i++)
 		{
 			for (int j = 6; j < column - DRange - 6; j++)
@@ -233,10 +249,7 @@ void SHDRighttoLeft13(unsigned int* DMap, unsigned long  *LPic, unsigned long  *
 
 				for (int k = -6; k <= 6; k++)
 				{
-					for (int l = -6; l <= 6; l++)
-					{
-						HammDistCalc+=*(XorSum + (i+k)*column+j+l);
-					}
+					HammDistCalc+=*(HammDistY + i*column+j + k);
 				}
 
 				if (HammDistCalc<*(HammDist+i*column+j))
@@ -286,13 +299,14 @@ int main()
 		fprintf(stderr, "out of memory\n");
 	}
 
-	unsigned int* DMap, *XorSum, *HammDist;
+	unsigned int* DMap, *XorSum, *HammDist, *HammDistY;
 
 	DMap = (unsigned int*)malloc(row * column * sizeof(unsigned int));
 	HammDist = (unsigned int*)malloc(row*column*sizeof(unsigned int));
 	XorSum = (unsigned int*)malloc((row+36)*column*sizeof(unsigned int));
+	HammDistY = (unsigned int*)malloc(row*column*sizeof(unsigned int));
 
-	if (DMap == NULL || HammDist ==NULL || XorSum == NULL)
+	if (DMap == NULL || HammDist ==NULL || XorSum == NULL || HammDistY == NULL)
 	{
 		fprintf(stderr, "out of memory\n");
 	}
@@ -308,10 +322,10 @@ int main()
 
 	InitializeUIArray(DMap,row,column);
 
-	std::thread a(SHDRighttoLeft13, DMap,								LCTImage, 							   RCTImage, 							 row / 4 + 6, column,HammDist, 							   XorSum);
-	std::thread b(SHDRighttoLeft13, DMap + (row / 4 - 6) * column, 		LCTImage + (row / 2 - 12) * column,    RCTImage + (row / 2 - 12) * column,   row / 4 + 12,column,HammDist + (row / 4 - 6) * column,    XorSum + (row / 4 + 6) * column);
-	std::thread c(SHDRighttoLeft13, DMap + (row / 2 - 6) * column, 		LCTImage + (row - 12) * column, 	   RCTImage + (row - 12)* column, 		 row / 4 + 12,column,HammDist + (row / 2 - 6)* column, 	   XorSum + (row / 2 + 18)* column);
-	std::thread d(SHDRighttoLeft13, DMap + (row * 3 / 4 - 6) * column, 	LCTImage + (row * 3 / 2 - 12) * column,RCTImage + (row *3 / 2 - 12) * column,row / 4 + 6, column,HammDist + (row * 3 / 4 - 6) * column,XorSum + (row * 3 / 4 + 30) * column);
+	std::thread a(SHDRighttoLeft13, DMap,								LCTImage, 							   RCTImage, 							 row / 4 + 6, column,HammDist, 							   XorSum								,HammDistY);
+	std::thread b(SHDRighttoLeft13, DMap + (row / 4 - 6) * column, 		LCTImage + (row / 2 - 12) * column,    RCTImage + (row / 2 - 12) * column,   row / 4 + 12,column,HammDist + (row / 4 - 6) * column,    XorSum + (row / 4 + 6) * column		,HammDistY + (row / 4 - 6) * column);
+	std::thread c(SHDRighttoLeft13, DMap + (row / 2 - 6) * column, 		LCTImage + (row - 12) * column, 	   RCTImage + (row - 12)* column, 		 row / 4 + 12,column,HammDist + (row / 2 - 6)* column, 	   XorSum + (row / 2 + 18)* column		,HammDistY + (row / 2 - 6)* column);
+	std::thread d(SHDRighttoLeft13, DMap + (row * 3 / 4 - 6) * column, 	LCTImage + (row * 3 / 2 - 12) * column,RCTImage + (row *3 / 2 - 12) * column,row / 4 + 6, column,HammDist + (row * 3 / 4 - 6) * column,XorSum + (row * 3 / 4 + 30) * column	,HammDistY + (row * 3 / 4 - 6) * column);
 
 	a.join();
 	b.join();
